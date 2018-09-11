@@ -117,7 +117,7 @@ class App(Gtk.Application):                                     # {{{1
   # TODO: flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE ?
   def __init__(self, *args, **kwargs):
     super().__init__(*args, application_id = APPID, **kwargs)
-    self.win, self.actions = None, []
+    self.win, self.actions, self.fullscreen = None, [], False
 
   def do_startup(self):                                         # {{{2
     Gtk.Application.do_startup(self)
@@ -184,7 +184,6 @@ class App(Gtk.Application):                                     # {{{1
     self.win.term.say(msg)
 
   def on_cmd_spawned(self, pid):
-    if self.fullscreen: self.win.unfullscreen()                 # TODO
     info("*** SPAWN ***", "pid =", pid)
     for action in self.actions:
       if action.get_name() != "quit":
