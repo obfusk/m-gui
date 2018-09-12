@@ -28,7 +28,8 @@ r"""
 #   - --show-hidden --ignorecase --numeric-sort
 #   - --numbers
 #   - | column
-# * use shell "m ..." if no need to quote?
+# * merge gui.json
+# * use shell "m ..." only if no need to quote?!
 # * README etc., document, test?, package
 # * (MAYBE) about dialog, help etc.
 # * (MAYBE) menu icons?
@@ -59,7 +60,19 @@ SCROLLBACK  = 1024
 
 # NB: we run a login shell b/c we need /etc/profile.d/vte-2.91.sh to
 # be sourced for current_directory_uri to work.
-SHELL       = "/bin/bash --login".split()
+SHELL       = "/bin/bash"
+SHELLCMD    = [SHELL, "-l"]
+SHELLRUN    = [SHELL, "-c"]
+
+# === config ===
+
+# TODO: more!; merge w/ ~/.obfusk-m/gui.json if exists; add_commands
+def config(m = MCMD):
+  return dict(
+    scripts   = dict(list = m+" ls", listdirs = m+" ld", next = m+" n"),
+    commands  = [["list l _List", "listdirs d List _Directories"],
+                 ["next n Play _Next"]]
+  )
 
 # === classes ===
 
@@ -84,7 +97,7 @@ def define_classes():
     def run(self, *cmd, **kwargs):                              # {{{2
       """Run command in terminal."""
       info("*** RUN ***", cmd)
-      if kwargs.get("reset", True): self.reset(False, True)
+      if kwargs.get("clear", True): self.clear()
       header = kwargs.get("header")
       if header: self.feed(header.replace("\n", "\n\r").encode())
       _, pid = self.spawn_sync(Vte.PtyFlags.DEFAULT, None, cmd, [],
@@ -93,8 +106,11 @@ def define_classes():
       time.sleep(0.1)   # seems to help
                                                                 # }}}2
 
-    def sh(self):
-      self.run(*SHELL)
+    def clear(self):
+      self.reset(False, True)
+
+    def sh(self, cmd = None, **kwargs):
+      self.run(*(SHELLRUN + [cmd] if cmd else SHELLCMD), **kwargs)
 
     def on_child_exited(self, _term, status):
       if self.exited_callback: self.exited_callback(status)
@@ -133,13 +149,18 @@ def define_classes():
       self.is_fs, self.stay_fs, self.start_fs \
         = False, stay_fullscreen, fullscreen
 
-    def do_startup(self):
+    def do_startup(self):                                       # {{{2
+      xml, self.scripts = menu_xml_and_scripts()
       Gtk.Application.do_startup(self)
-      builder = Gtk.Builder.new_from_string(MENU_XML, -1)
+      builder = Gtk.Builder.new_from_string(xml, -1)
       self.set_menubar(builder.get_object("menubar"))
-      for name in ACTIONS:
+      for name in xml_actions(xml):
         cb = "on_{}".format(name)
-        self.add_simple_action(name, getattr(self, cb))
+        if hasattr(self, cb):
+          self.add_simple_action(name, getattr(self, cb))
+        else:
+          self.add_simple_action(name, self.on_run_script(name))
+                                                                # }}}2
 
     def add_simple_action(self, name, callback):
       action = Gio.SimpleAction.new(name, None)
@@ -162,13 +183,10 @@ def define_classes():
 
     def on_opendir(self, _action, _param):
       d = self.choose_folder()
-      if d is not None:
-        os.chdir(d)
-        self.on_chdir(d)
+      if d is not None: self.chdir(d)
 
     def on_dirup(self, _action, _param):
-      chdir_up()
-      self.on_chdir(cwd())
+      self.chdir(dir_up())
 
     def on_shell(self, _action, _param):
       self.noquit = True
@@ -177,22 +195,22 @@ def define_classes():
     def on_quit(self, _action, _param):
       self.quit()
 
-    def on_list(self, _action, _param):
-      self.run_m("ls")
-
-    def on_listdirs(self, _action, _param):
-      self.run_m("ld")
-
-    def on_next(self, _action, _param):
-      self.run_m("next")
-
-    # ... TODO ...
+    def on_run_script(self, name):
+      def f(_action, _param):
+        self.run_m(self.scripts[name])
+      return f
 
     def on_pgup(self, _action, _param):
       v = self._vadj; v.set_value(v.get_value() - v.get_page_increment())
 
     def on_pgdn(self, _action, _param):
       v = self._vadj; v.set_value(v.get_value() + v.get_page_increment())
+
+    def on_lnup(self, _action, _param):
+      v = self._vadj; v.set_value(v.get_value() - v.get_step_increment())
+
+    def on_lndn(self, _action, _param):
+      v = self._vadj; v.set_value(v.get_value() + v.get_step_increment())
 
     def on_top(self, _action, _param):
       v = self._vadj; v.set_value(v.get_lower())
@@ -223,13 +241,18 @@ def define_classes():
         action.set_enabled(True)
       if self.stay_fs: self.win.fullscreen()
 
-    def on_chdir(self, d):
-      info("*** CHDIR ***", d)
-      self.win.cwd_lbl.set_text(d)
-
     def on_window_state_event(self, widget, event):
       self.is_fs = bool(event.new_window_state &
                         Gdk.WindowState.FULLSCREEN)
+
+    def on_chdir(self, d):
+      info("*** CHDIR ***", d)
+      self.win.cwd_lbl.set_text(cwd())
+
+    def chdir(self, d):
+      os.chdir(d)
+      self.on_chdir(d)
+      self.win.term.clear()
 
     def choose_folder(self):                                    # {{{2
       dialog = Gtk.FileChooserDialog(
@@ -250,11 +273,9 @@ def define_classes():
                                                                 # }}}2
 
     # TODO: what about opts & args? ask or allow choosing?
-    def run_m(self, *cmd):
+    def run_m(self, cmd):
       os.environ["PWD"] = cwd()
-      fcmd              = (MCMD,) + cmd
-      header            = "$ {}\n".format(" ".join(fcmd))
-      self.win.term.run(*fcmd, header = header)
+      self.win.term.sh(cmd, header = "$ {}\n".format(cmd))
                                                                 # }}}1
 
 # === functions ===
@@ -293,14 +314,28 @@ def _argument_parser():                                         # {{{1
 def info(*msgs): print(*msgs, file = sys.stderr)
 
 # ugly, but better than os.chdir(`cd ..; pwd`), right?!
-def chdir_up(): os.chdir(str(Path(cwd()).parent))
+def dir_up(): return str(Path(cwd()).parent)
 
 def cwd(): return GLib.get_current_dir()  # ok w/ symlinks
+
+def menu_xml_and_scripts():
+  c = config()
+  return MENU_XML_HEAD + "".join(
+    MENU_XML_SECTION_HEAD + "".join(
+      MENU_XML_ITEM.format(*spec.split(maxsplit = 2)) for spec in sec
+    ) + MENU_XML_SECTION_FOOT
+    for sec in c["commands"]
+  ) + MENU_XML_FOOT, c["scripts"]
+
+def xml_actions(xml):
+  return set( x.text.strip().replace("app.", "")
+              for x in ET.fromstring(xml)
+              .findall(".//attribute[@name='action']") )
 
 # === data ===
 
                                                                 # {{{1
-MENU_XML = """
+MENU_XML_HEAD = """
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <menu id="menubar">
@@ -335,38 +370,35 @@ MENU_XML = """
     </submenu>
     <submenu>
       <attribute name="label" translatable="yes">_Command</attribute>
-      <section>
-        <item>
-          <attribute name="action">app.list</attribute>
-          <attribute name="label" translatable="yes">_List</attribute>
-          <attribute name="accel">l</attribute>
-        </item>
-        <item>
-          <attribute name="action">app.listdirs</attribute>
-          <attribute name="label" translatable="yes">List _Directories</attribute>
-          <attribute name="accel">d</attribute>
-        </item>
-      </section>
-      <section>
-        <item>
-          <attribute name="action">app.next</attribute>
-          <attribute name="label" translatable="yes">Play _Next</attribute>
-          <attribute name="accel">n</attribute>
-        </item>
-      </section>
+"""[1:]                                                         # }}}1
+
+                                                                # {{{1
+MENU_XML_FOOT = """
     </submenu>
     <submenu>
       <attribute name="label" translatable="yes">_Window</attribute>
       <section>
         <item>
           <attribute name="action">app.pgup</attribute>
-          <attribute name="label" translatable="yes">Scroll _Up</attribute>
+          <attribute name="label" translatable="yes">Scroll _Up a Page</attribute>
           <attribute name="accel">Page_Up</attribute>
         </item>
         <item>
           <attribute name="action">app.pgdn</attribute>
-          <attribute name="label" translatable="yes">Scroll _Down</attribute>
+          <attribute name="label" translatable="yes">Scroll _Down a Page</attribute>
           <attribute name="accel">Page_Down</attribute>
+        </item>
+      </section>
+      <section>
+        <item>
+          <attribute name="action">app.lnup</attribute>
+          <attribute name="label" translatable="yes">Scroll Up a Line</attribute>
+          <attribute name="accel">Up</attribute>
+        </item>
+        <item>
+          <attribute name="action">app.lndn</attribute>
+          <attribute name="label" translatable="yes">Scroll Down a Line</attribute>
+          <attribute name="accel">Down</attribute>
         </item>
       </section>
       <section>
@@ -394,9 +426,21 @@ MENU_XML = """
 """[1:]
                                                                 # }}}1
 
-ACTIONS = set( x.text.strip().replace("app.", "")
-               for x in ET.fromstring(MENU_XML)
-                        .findall(".//attribute[@name='action']") )
+MENU_XML_SECTION_HEAD = """
+      <section>
+"""[1:]
+
+MENU_XML_ITEM = """
+        <item>
+          <attribute name="action">app.{}</attribute>
+          <attribute name="accel">{}</attribute>
+          <attribute name="label" translatable="yes">{}</attribute>
+        </item>
+"""[1:]
+
+MENU_XML_SECTION_FOOT = """
+      </section>
+"""[1:]
 
 # === entry point ===
 
