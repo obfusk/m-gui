@@ -33,7 +33,7 @@ $ m-gui --stay-fullscreen --scale 2.0
 
 ## Requirements
 
-Python >= 3.5, PyGObject, GTK+ 3, VTE.
+Python >= 3.5, PyGObject, GTK+ 3, VTE; and `m` of course.
 
 ## Installing
 
