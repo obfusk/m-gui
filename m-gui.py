@@ -172,7 +172,7 @@ def define_classes():
       if not self.win:
         term_args = dict(spawned_callback = self.on_cmd_spawned,
                          exited_callback  = self.on_cmd_exited,
-                         chdir_callback   = self.on_chdir)
+                         chdir_callback   = self.chdir)
         self.win  = AppWin(application = self, title = TITLE,
                            term_args = term_args)
         self.win.connect("window-state-event", self.on_window_state_event)
@@ -183,10 +183,10 @@ def define_classes():
 
     def on_opendir(self, _action, _param):
       d = self.choose_folder()
-      if d is not None: self.chdir(d)
+      if d is not None: self.chdir_and_clear(d)
 
     def on_dirup(self, _action, _param):
-      self.chdir(dir_up())
+      self.chdir_and_clear(dir_up())
 
     def on_shell(self, _action, _param):
       self.noquit = True
@@ -245,13 +245,13 @@ def define_classes():
       self.is_fs = bool(event.new_window_state &
                         Gdk.WindowState.FULLSCREEN)
 
-    def on_chdir(self, d):
+    def chdir(self, d):
+      chdir(d)
       info("*** CHDIR ***", d)
       self.win.cwd_lbl.set_text(cwd())
 
-    def chdir(self, d):
-      os.chdir(d)
-      self.on_chdir(d)
+    def chdir_and_clear(self, d):
+      self.chdir(d)
       self.win.term.clear()
 
     def choose_folder(self):                                    # {{{2
@@ -274,7 +274,6 @@ def define_classes():
 
     # TODO: what about opts & args? ask or allow choosing?
     def run_m(self, cmd):
-      os.environ["PWD"] = cwd()
       self.win.term.sh(cmd, header = "$ {}\n".format(cmd))
                                                                 # }}}1
 
@@ -316,7 +315,20 @@ def info(*msgs): print(*msgs, file = sys.stderr)
 # ugly, but better than os.chdir(`cd ..; pwd`), right?!
 def dir_up(): return str(Path(cwd()).parent)
 
-def cwd(): return GLib.get_current_dir()  # ok w/ symlinks
+# NB: only ever use this to chdir so as to not break cwd()
+def chdir(d):
+  pd = Path(d)
+  if not pd.is_absolute() or set([".", ".."]) & set(pd.parts):
+    raise RuntimeError("OOPS -- this should never happen ")
+  os.chdir(d)
+  os.environ["PWD"] = d
+
+# NB: not ideal, but hopefully it works
+def cwd():
+  pwd = os.environ["PWD"]
+  if Path(pwd).resolve() != Path().resolve():
+    raise RuntimeError("OOPS -- this should never happen ")
+  return pwd
 
 def menu_xml_and_scripts():
   c = config()
