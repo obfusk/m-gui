@@ -5,7 +5,7 @@
 #
 # File        : m-gui.py
 # Maintainer  : Felix C. Stegerman <flx@obfusk.net>
-# Date        : 2018-09-11
+# Date        : 2018-09-12
 #
 # Copyright   : Copyright (C) 2018  Felix C. Stegerman
 # Version     : v0.0.1
@@ -15,31 +15,17 @@
 
                                                                 # {{{1
 r"""
-...
+m - minimalistic media manager - GUI
+
+See README.md for additional information and examples.
 """
                                                                 # }}}1
-
-# === TODO ===
-#
-# * cover most important commands!
-#   - la, nn, p, m, u, s, i, alias, ...
-# * allow choices (input / choose) for arguments for mark etc.
-# * checkboxes etc. for --options, --options -> m, config.json?!
-#   - --show-hidden --ignorecase --numeric-sort
-#   - --numbers
-#   - | column
-# * merge gui.json
-# * use shell "m ..." only if no need to quote?!
-# * README etc., document, test?, package
-# * (MAYBE) about dialog, help etc.
-# * (MAYBE) menu icons?
-# * (MAYBE) control w/ cursor+enter? // terminal vs list view?
 
 # Depends: python3:any (>= 3.5~), python3-gi, libgtk-3-0, libvte-2.91-0
 
 # === imports ===
 
-import argparse, gi, os, sys, time
+import argparse, gi, json, os, re, sys, time
 import xml.etree.ElementTree as ET
 
 from pathlib import Path
@@ -50,29 +36,50 @@ from pathlib import Path
 
 __version__ = "0.0.1"
 
-TITLE       = "m - minimalistic media manager - GUI"
+DESC        = "m - minimalistic media manager - GUI"
+
+HOME        = Path.home()
+CFG         = ".obfusk-m"
+GUICFGFILE  = "gui.json"
+
 APPID       = "ch.obfusk.m.gui"
 SIZE        = (1280, 720)
 
 MCMD        = "m"
+MCMDRX      = r"\A[A-Za-z0-9_/-]+\Z"
 SCALE       = 1.5
 SCROLLBACK  = 1024
 
 # NB: we run a login shell b/c we need /etc/profile.d/vte-2.91.sh to
 # be sourced for current_directory_uri to work.
-SHELL       = "/bin/bash"
+SHELL       = "/bin/bash"                                       # TODO
 SHELLCMD    = [SHELL, "-l"]
 SHELLRUN    = [SHELL, "-c"]
 
 # === config ===
 
-# TODO: more!; merge w/ ~/.obfusk-m/gui.json if exists; add_commands
-def config(m = MCMD):
+def config():
+  user      = user_config()
+  cfg       = default_config(user.get("m_command", MCMD))
+  scripts   = { **cfg["scripts"], **user.get("scripts", {}) }
+  commands  = user.get("commands", cfg["commands"])
+  commands.extend(user.get("add_commands", []))
+  return dict(scripts = scripts, commands = commands)
+
+# TODO
+def default_config(m):
+  if not re.match(MCMDRX, m):
+    raise RuntimeError("potentially problematic m command; aborting")
   return dict(
     scripts   = dict(list = m+" ls", listdirs = m+" ld", next = m+" n"),
     commands  = [["list l _List", "listdirs d List _Directories"],
                  ["next n Play _Next"]]
   )
+
+def user_config():
+  cf = HOME / CFG / GUICFGFILE
+  if not cf.exists(): return {}
+  with cf.open() as f: return json.load(f)
 
 # === classes ===
 
@@ -173,7 +180,7 @@ def define_classes():
         term_args = dict(spawned_callback = self.on_cmd_spawned,
                          exited_callback  = self.on_cmd_exited,
                          chdir_callback   = self.chdir)
-        self.win  = AppWin(application = self, title = TITLE,
+        self.win  = AppWin(application = self, title = DESC,
                            term_args = term_args)
         self.win.connect("window-state-event", self.on_window_state_event)
       self.win.show_all()
@@ -295,7 +302,7 @@ def main(*args):
       stay_fullscreen = n.stay_fullscreen).run()
 
 def _argument_parser():                                         # {{{1
-  p = argparse.ArgumentParser(description = TITLE)
+  p = argparse.ArgumentParser(description = DESC)
   p.set_defaults(scale = SCALE, fullscreen = False,
                  stay_fullscreen = False)
   p.add_argument("--version", action = "version",
@@ -454,13 +461,9 @@ MENU_XML_SECTION_FOOT = """
       </section>
 """[1:]
 
-# === entry point ===
-
-def main_():
-  """Entry point for main program."""
-  return main(*sys.argv[1:])
+# === run ===
 
 if __name__ == "__main__":
-  sys.exit(main_())
+  sys.exit(main(*sys.argv[1:]))
 
 # vim: set tw=70 sw=2 sts=2 et fdm=marker :
