@@ -118,4 +118,9 @@ spaces and other problematic characters; be careful!
 
 [![GPLv3+](https://www.gnu.org/graphics/gplv3-127x51.png)](https://www.gnu.org/licenses/gpl-3.0.html)
 
+## Links
+
+* [GTK+ key names](https://github.com/GNOME/gtk/blob/master/gdk/keynames.txt)
+  for key bindings like `<Primary>q`.
+
 <!-- vim: set tw=70 sw=2 sts=2 et fdm=marker : -->
