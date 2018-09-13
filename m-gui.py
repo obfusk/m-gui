@@ -68,12 +68,13 @@ def command(config, name):
 def config():                                                   # {{{1
   user, cfg = user_config(), default_config()
   w_def     = lambda k: user.get(k, cfg.get(k))
-  scripts   = { **cfg["scripts"], **user.get("scripts", {}) }
-  mc, mo    = w_def("m_command"), w_def("m_options")
-  commands  = w_def("commands")
-  commands.extend(user.get("add_commands", []))
-  return dict(scripts = scripts, commands = commands,
-              m_command = mc, m_options = mo)
+  return dict(
+    scripts   = { **cfg["scripts"], **user.get("scripts", {}) },
+    commands  = w_def("commands") + user.get("add_commands", []),
+    m_command = w_def("m_command"),
+    m_options = w_def("m_options"),
+    colours   = w_def("colours")
+  )
                                                                 # }}}1
 
 # TODO
@@ -97,7 +98,10 @@ def default_config():                                           # {{{1
       ["index           i         _Index Current Directory",
        "alias           <Shift>a  Alias Current Directory"]
     ],
-    m_command = MCMD, m_options = MOPTS
+    m_command = MCMD, m_options = MOPTS,
+    colours   = "#ffffff:#000000:#2e3436:#cc0000:#4e9a06:#c4a000:"
+                "#3465a4:#75507b:#06989a:#d3d7cf:#555753:#ef2929:"
+                "#8ae234:#fce94f:#729fcf:#ad7fa8:#34e2e2:#eeeeec"
   )
                                                                 # }}}1
 
@@ -117,7 +121,7 @@ def define_classes():
     FLG = GLib.SpawnFlags.DO_NOT_REAP_CHILD | GLib.SpawnFlags.SEARCH_PATH
 
     def __init__(self, spawned_callback = None, exited_callback = None,
-                 chdir_callback = None, *args, **kwargs):
+                 chdir_callback = None, colours = None, *args, **kwargs):
       super().__init__(*args, **kwargs)
       self.set_scrollback_lines(SCROLLBACK)
       self.connect("child-exited", self.on_child_exited)
@@ -125,6 +129,7 @@ def define_classes():
       self.spawned_callback = spawned_callback
       self.exited_callback  = exited_callback
       self.chdir_callback   = chdir_callback
+      if colours: self.set_colors(*colours)
 
     def run(self, *cmd, **kwargs):                              # {{{2
       """Run command in terminal."""
@@ -173,10 +178,12 @@ def define_classes():
   class App(Gtk.Application):                                   # {{{1
     """Main application."""
 
-    # TODO: flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE ?
+    # TODO: Gio.ApplicationFlags.HANDLES_COMMAND_LINE ?
     def __init__(self, *args, fullscreen = False,
                  stay_fullscreen = False, **kwargs):
-      super().__init__(*args, application_id = APPID, **kwargs)
+      super().__init__(*args, application_id = APPID,
+                       flags = Gio.ApplicationFlags.NON_UNIQUE,
+                       **kwargs)
       self.win, self.actions, self.noquit = None, [], False
       self.is_fs, self.stay_fs, self.start_fs \
         = False, stay_fullscreen, fullscreen
@@ -202,9 +209,12 @@ def define_classes():
 
     def do_activate(self):                                      # {{{2
       if not self.win:
+        colours   = [ parse_colour(c)     # [fg,bg]+palette
+                      for c in self.config["colours"].split(":") ]
         term_args = dict(spawned_callback = self.on_cmd_spawned,
                          exited_callback  = self.on_cmd_exited,
-                         chdir_callback   = self.chdir)
+                         chdir_callback   = self.chdir,
+                         colours          = colours[:2]+[colours[2:]])
         self.win  = AppWin(application = self, title = DESC,
                            term_args = term_args)
         self.win.connect("window-state-event", self.on_window_state_event)
@@ -388,6 +398,11 @@ def xml_actions(xml):
   return set( x.text.strip().replace("app.", "")
               for x in ET.fromstring(xml)
               .findall(".//attribute[@name='action']") )
+
+def parse_colour(s):
+  c = Gdk.RGBA()
+  if not c.parse(s): raise ValueError("colour parse failed: {}".format(s))
+  return c
 
 # === data ===
 
