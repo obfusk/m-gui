@@ -2,7 +2,7 @@
 
     File        : README.md
     Maintainer  : Felix C. Stegerman <flx@obfusk.net>
-    Date        : 2018-09-12
+    Date        : 2018-09-13
 
     Copyright   : Copyright (C) 2018  Felix C. Stegerman
     Version     : v0.0.1
@@ -29,6 +29,13 @@ A minimalistic GUI for [m](https://github.com/obfusk/m).
 
 ```bash
 $ m-gui --stay-fullscreen --scale 2.0
+```
+
+## Help
+
+```bash
+$ m-gui --help          # show options
+$ m-gui --show-config   # show configuration
 ```
 
 ## Requirements
@@ -69,11 +76,11 @@ example:
 {
   "add_commands": [
     [
-      "markandnext space _Mark Playing and Play Next"
+      "mark-and-next space _Mark Playing and Play Next"
     ]
   ],
   "scripts": {
-    "markandnext": "m mark playing && m next"
+    "mark-and-next": "#{M} mark playing && #{M} next"
   }
 }
 ```
@@ -86,13 +93,13 @@ and if your `m` command is e.g. `mmm`:
 }
 ```
 
-NB: do not use a command name that includes spaces or anything else
-that needs to be escaped when passed to the shell.
+NB: the command is passed to the shell, so you'll need to escape
+spaces and other problematic characters; be careful!
 
 ## TODO
 
 * cover most important commands!
-  - la, nn, p, m, u, s, i, alias, ...
+  - p, m, u, s
 * allow choices (input / choose) for arguments for mark etc.
 * checkboxes etc. for --options, --options -> m, config.json?!
   - --show-hidden --ignorecase --numeric-sort

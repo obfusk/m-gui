@@ -5,7 +5,7 @@
 #
 # File        : m-gui.py
 # Maintainer  : Felix C. Stegerman <flx@obfusk.net>
-# Date        : 2018-09-12
+# Date        : 2018-09-13
 #
 # Copyright   : Copyright (C) 2018  Felix C. Stegerman
 # Version     : v0.0.1
@@ -46,7 +46,8 @@ APPID       = "ch.obfusk.m.gui"
 SIZE        = (1280, 720)
 
 MCMD        = "m"
-MCMDRX      = r"\A[A-Za-z0-9_/-]+\Z"
+MOPTS       = "--colour"
+
 SCALE       = 1.5
 SCROLLBACK  = 1024
 
@@ -58,23 +59,47 @@ SHELLRUN    = [SHELL, "-c"]
 
 # === config ===
 
-def config():
-  user      = user_config()
-  cfg       = default_config(user.get("m_command", MCMD))
-  scripts   = { **cfg["scripts"], **user.get("scripts", {}) }
-  commands  = user.get("commands", cfg["commands"])
-  commands.extend(user.get("add_commands", []))
-  return dict(scripts = scripts, commands = commands)
+# TODO
+def command(config, name):
+  m = config["m_command"] + " " + config["m_options"]
+  return config["scripts"][name].replace("#{M}", m)
 
 # TODO
-def default_config(m):
-  if not re.match(MCMDRX, m):
-    raise RuntimeError("potentially problematic m command; aborting")
+def config():                                                   # {{{1
+  user, cfg = user_config(), default_config()
+  w_def     = lambda k: user.get(k, cfg.get(k))
+  scripts   = { **cfg["scripts"], **user.get("scripts", {}) }
+  mc, mo    = w_def("m_command"), w_def("m_options")
+  commands  = w_def("commands")
+  commands.extend(user.get("add_commands", []))
+  return dict(scripts = scripts, commands = commands,
+              m_command = mc, m_options = mo)
+                                                                # }}}1
+
+# TODO
+def default_config():                                           # {{{1
   return dict(
-    scripts   = dict(list = m+" ls", listdirs = m+" ld", next = m+" n"),
-    commands  = [["list l _List", "listdirs d List _Directories"],
-                 ["next n Play _Next"]]
+    scripts = {
+      "list"           : "#{M} ls",
+      "list-dirs"      : "#{M} ld",
+      "list-dirs-cols" : "#{M} ld | column",
+      "next"           : "#{M} n",
+      "next-new"       : "#{M} nn",
+      "index"          : "#{M} index",
+      "alias"          : "#{M} alias"
+    },
+    commands = [
+      ["list            l         _List",
+       "list-dirs       d         List _Directories",
+       "list-dirs-cols  <Shift>d  List Directories in Columns"],
+      ["next            n         Play _Next",
+       "next-new        <Shift>n  Play Next New"],
+      ["index           i         _Index Current Directory",
+       "alias           <Shift>a  Alias Current Directory"]
+    ],
+    m_command = MCMD, m_options = MOPTS
   )
+                                                                # }}}1
 
 def user_config():
   cf = HOME / CFG / GUICFGFILE
@@ -157,7 +182,7 @@ def define_classes():
         = False, stay_fullscreen, fullscreen
 
     def do_startup(self):                                       # {{{2
-      xml, self.scripts = menu_xml_and_scripts()
+      xml, self.config = menu_xml_and_config()
       Gtk.Application.do_startup(self)
       builder = Gtk.Builder.new_from_string(xml, -1)
       self.set_menubar(builder.get_object("menubar"))
@@ -204,7 +229,7 @@ def define_classes():
 
     def on_run_script(self, name):
       def f(_action, _param):
-        self.run_m(self.scripts[name])
+        self.run_cmd(command(self.config, name))
       return f
 
     def on_pgup(self, _action, _param):
@@ -280,7 +305,7 @@ def define_classes():
                                                                 # }}}2
 
     # TODO: what about opts & args? ask or allow choosing?
-    def run_m(self, cmd):
+    def run_cmd(self, cmd):
       self.win.term.sh(cmd, header = "$ {}\n".format(cmd))
                                                                 # }}}1
 
@@ -294,12 +319,18 @@ def import_gtk(scale = SCALE):
   gi.require_version("Vte", "2.91")
   from gi.repository import GLib, Gio, Gdk, Gtk, Pango, Vte
 
-def main(*args):
+def main(*args):                                                # {{{1
   n = _argument_parser().parse_args(args)
+  if n.show_config:
+    json.dump(config(), sys.stdout, indent = 2, sort_keys = True)
+    print()
+    return 0
   import_gtk(scale = n.scale)
   define_classes()
   App(fullscreen = n.fullscreen or n.stay_fullscreen,
       stay_fullscreen = n.stay_fullscreen).run()
+  return 0
+                                                                # }}}1
 
 def _argument_parser():                                         # {{{1
   p = argparse.ArgumentParser(description = DESC)
@@ -307,6 +338,8 @@ def _argument_parser():                                         # {{{1
                  stay_fullscreen = False)
   p.add_argument("--version", action = "version",
                  version = "%(prog)s {}".format(__version__))
+  p.add_argument("--show-config", action = "store_true",
+                 help = "show configuration and exit")
   p.add_argument("--scale", "-s", metavar = "SCALE", type = float,
                  help = "set $GDK_DPI_SCALE to SCALE")
   p.add_argument("--fullscreen", "--fs", action = "store_true",
@@ -337,14 +370,19 @@ def cwd():
     raise RuntimeError("OOPS -- this should never happen ")
   return pwd
 
-def menu_xml_and_scripts():
+def menu_xml_and_config():                                      # {{{1
   c = config()
   return MENU_XML_HEAD + "".join(
     MENU_XML_SECTION_HEAD + "".join(
-      MENU_XML_ITEM.format(*spec.split(maxsplit = 2)) for spec in sec
+      MENU_XML_ITEM.format(*map(xml_quote, spec.split(maxsplit = 2)))
+      for spec in sec
     ) + MENU_XML_SECTION_FOOT
     for sec in c["commands"]
-  ) + MENU_XML_FOOT, c["scripts"]
+  ) + MENU_XML_FOOT, c
+                                                                # }}}1
+
+def xml_quote(s):
+  return s.replace("<", "&lt;").replace(">", "&gt;")
 
 def xml_actions(xml):
   return set( x.text.strip().replace("app.", "")
