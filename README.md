@@ -103,7 +103,7 @@ special characters (including spaces) appropriately; be careful!
   "m_options": {
     "colour": true,
     "ignorecase": true,
-    "numeric-sort": true
+    "numeric-sort": true,
     "show-hidden": true
   }
 }
