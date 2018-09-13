@@ -46,7 +46,7 @@ APPID       = "ch.obfusk.m.gui"
 SIZE        = (1280, 720)
 
 MCMD        = "m"
-MOPTS       = "--colour"
+MOPTS       = "colour show-hidden ignorecase numeric-sort".split()
 
 SCALE       = 1.5
 SCROLLBACK  = 1024
@@ -61,8 +61,9 @@ SHELLRUN    = [SHELL, "-c"]
 
 # TODO
 def command(config, name):
-  m = config["m_command"] + " " + config["m_options"]
-  return config["scripts"][name].replace("#{M}", m)
+  opts = " ".join( "--"+o for o in MOPTS if config["m_options"].get(o) )
+  mcmd = config["m_command"] + (" " + opts if opts else "")
+  return config["scripts"][name].replace("#{M}", mcmd)
 
 # TODO
 def config():                                                   # {{{1
@@ -98,7 +99,7 @@ def default_config():                                           # {{{1
       ["index           i         _Index Current Directory",
        "alias           <Shift>a  Alias Current Directory"]
     ],
-    m_command = MCMD, m_options = MOPTS,
+    m_command = MCMD, m_options = dict(colour = True),
     colours   = "#ffffff:#000000:#2e3436:#cc0000:#4e9a06:#c4a000:"
                 "#3465a4:#75507b:#06989a:#d3d7cf:#555753:#ef2929:"
                 "#8ae234:#fce94f:#729fcf:#ad7fa8:#34e2e2:#eeeeec"

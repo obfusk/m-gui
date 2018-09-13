@@ -85,7 +85,7 @@ example:
 }
 ```
 
-and if your `m` command is e.g. `mmm`:
+### m command
 
 ```json
 {
@@ -93,26 +93,41 @@ and if your `m` command is e.g. `mmm`:
 }
 ```
 
-NB: the command is passed to the shell, so you'll need to escape
-spaces and other problematic characters; be careful!
+NB: the command is passed to the shell, so you'll need to escape/quote
+special characters (including spaces) appropriately; be careful!
+
+### m options
+
+```json
+{
+  "m_options": {
+    "colour": true,
+    "ignorecase": true,
+    "numeric-sort": true
+    "show-hidden": true
+  }
+}
+```
 
 ## TODO
 
+* allow choices (input / choose) for arguments for mark etc.
 * cover most important commands!
   - p, m, u, s
-* allow choices (input / choose) for arguments for mark etc.
-* checkboxes etc. for --options, --options -> m, config.json?!
-  - --show-hidden --ignorecase --numeric-sort
-  - --numbers
-  - | column
-* use shell "m ..." only if no need to quote?!
-* allow no accel?!
+* also allow setting --numeric-sort etc.
+  - checkboxes in gui?
+  - --options passed through to m
+  - --numbers?
 * handle exceptions better.
-* README etc., document, test?, package (deb + pip)
-* screenshot?
-* (MAYBE) about dialog, help etc.
-* (MAYBE) menu icons?
-* (MAYBE) control w/ cursor+enter? // terminal vs list view?
+* README etc., document, test?, package (deb + pip); screenshot?
+* use shell "m ..." only if no need to quote?!
+
+### Maybe
+
+* about dialog, help etc.
+* menu icons?
+* control w/ cursor+enter? // terminal vs list view?
+* allow no accel?!
 
 ## License
 
