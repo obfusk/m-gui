@@ -21,7 +21,8 @@ See README.md for additional information and examples.
 """
                                                                 # }}}1
 
-# Depends: python3:any (>= 3.5~), python3-gi, libgtk-3-0, libvte-2.91-0
+# Depends: python3:any (>= 3.5~), python3-gi, libgtk-3-0,
+# libvte-2.91-0, mmm (>= 0.4.2~)
 
 # === imports ===
 
