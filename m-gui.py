@@ -25,7 +25,7 @@ See README.md for additional information and examples.
 
 # === imports ===
 
-import argparse, gi, json, os, re, sys, time
+import argparse, gi, json, os, re, subprocess, sys, time
 import xml.etree.ElementTree as ET
 
 from pathlib import Path
@@ -48,6 +48,9 @@ SIZE        = (1280, 720)
 MCMD        = "m"
 MOPTS       = "colour show-hidden ignorecase numeric-sort".split()
 
+MSPEC       = "skip done playing new all".split()
+CUSTOM      = "custom..."
+
 SCALE       = 1.5
 SCROLLBACK  = 1024
 
@@ -60,12 +63,20 @@ SHELLRUN    = [SHELL, "-c"]
 # === config ===
 
 # TODO
-def command(config, name):
-  opts = " ".join( "--"+o for o in MOPTS if config["m_options"].get(o) )
-  mcmd = config["m_command"] + (" " + opts if opts else "")
+def command(config, name, **override):
+  mopts = { **config["m_options"], **override }
+  opts  = " ".join( "--" + o for o in MOPTS if mopts.get(o) )
+  mcmd  = config["m_command"] + (" " + opts if opts else "")
   return config["scripts"][name].replace("#{M}", mcmd)
 
-# TODO
+def command_w_filespec(config, name, filespec, **override):
+  cmd = command(config, name, **override)
+  if "#{FILESPEC}" in cmd:
+    spec = filespec(name)
+    if spec is None: return None
+    cmd = cmd.replace("#{FILESPEC}", spec)
+  return cmd
+
 def config():                                                   # {{{1
   user, cfg = user_config(), default_config()
   w_def     = lambda k: user.get(k, cfg.get(k))
@@ -78,24 +89,34 @@ def config():                                                   # {{{1
   )
                                                                 # }}}1
 
-# TODO
 def default_config():                                           # {{{1
   return dict(
     scripts = {
-      "list"           : "#{M} ls",
-      "list-dirs"      : "#{M} ld",
-      "list-dirs-cols" : "#{M} ld | column",
-      "next"           : "#{M} n",
-      "next-new"       : "#{M} nn",
-      "index"          : "#{M} index",
-      "alias"          : "#{M} alias"
+      "list"            : "#{M} ls",
+      "list-nums"       : "#{M} ls --numbers",
+      "list-dirs"       : "#{M} ld",
+      "list-dirs-cols"  : "#{M} ld | column",
+      "next"            : "#{M} n",
+      "next-new"        : "#{M} nn",
+      "play"            : "#{M} p #{FILESPEC}",
+      "mark"            : "#{M} m #{FILESPEC}",
+      "unmark"          : "#{M} u #{FILESPEC}",
+      "skip"            : "#{M} s #{FILESPEC}",
+      "index"           : "#{M} index",
+      "alias"           : "#{M} alias",
+      "_list"           : "#{M} --no-colour --safe ls"
     },
     commands = [
       ["list            l         _List",
+       "list-nums       <Shift>l  List with Numbers",
        "list-dirs       d         List _Directories",
        "list-dirs-cols  <Shift>d  List Directories in Columns"],
       ["next            n         Play _Next",
        "next-new        <Shift>n  Play Next New"],
+      ["play            p         _Play File",
+       "mark            m         _Mark File",
+       "unmark          u         _Unmark File",
+       "skip            s         _Skip File"],
       ["index           i         _Index Current Directory",
        "alias           <Shift>a  Alias Current Directory"]
     ],
@@ -175,7 +196,59 @@ def define_classes():
       self.add(box)
                                                                 # }}}1
 
-  # TODO
+  class FileSpecDialog(Gtk.Dialog):                             # {{{1
+    """File spec chooser dialog."""
+
+    def __init__(self, parent, what, store):
+      super().__init__(
+        "Please choose a file to " + what, parent, 0,
+        (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+         Gtk.STOCK_OK, Gtk.ResponseType.OK)
+      )
+      self.store = store
+      self.chooser = Gtk.ComboBox.new_with_model(store)
+      self.chooser.get_style_context().add_class("monospace")
+      self.chooser.set_active(len(store)-1)
+      renderer = Gtk.CellRendererText()
+      self.chooser.pack_start(renderer, True)
+      self.chooser.add_attribute(renderer, "text", 1)
+      self.get_content_area().pack_start(self.chooser, True, True, 0)
+      self.set_default_response(Gtk.ResponseType.OK)
+      self.show_all()
+
+    def ask(self):
+      try:
+        if self.run() == Gtk.ResponseType.OK:
+          it = self.chooser.get_active_iter()
+          if it is not None: return self.store[it]
+        return None
+      finally:
+        self.destroy()
+                                                                # }}}1
+
+  class EntryDialog(Gtk.MessageDialog):                         # {{{1
+    """Entry dialog."""
+
+    def __init__(self, parent, message, text = None, title = None):
+      super().__init__(parent, 0, Gtk.MessageType.QUESTION,
+                       Gtk.ButtonsType.OK_CANCEL, message)
+      if title: self.set_title(title)
+      self.entry = Gtk.Entry()
+      if text: self.entry.set_text(text)
+      self.entry.set_activates_default(True)
+      self.get_message_area().pack_end(self.entry, True, True, 0)
+      self.set_default_response(Gtk.ResponseType.OK)
+      self.show_all()
+
+    def ask(self):
+      try:
+        if self.run() == Gtk.ResponseType.OK:
+          return self.entry.get_text()
+        return None
+      finally:
+        self.destroy()
+                                                                # }}}1
+
   class App(Gtk.Application):                                   # {{{1
     """Main application."""
 
@@ -190,6 +263,7 @@ def define_classes():
         = False, stay_fullscreen, fullscreen
 
     def do_startup(self):                                       # {{{2
+      Gtk.Application.do_startup(self)
       xml, self.config = menu_xml_and_config()
       Gtk.Application.do_startup(self)
       builder = Gtk.Builder.new_from_string(xml, -1)
@@ -200,6 +274,13 @@ def define_classes():
           self.add_simple_action(name, getattr(self, cb))
         else:
           self.add_simple_action(name, self.on_run_script(name))
+      provider = Gtk.CssProvider()
+      Gtk.StyleContext().add_provider_for_screen(
+        Gdk.Screen.get_default(), provider,
+        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+      )
+      css = b".monospace { font-family: monospace; }"
+      provider.load_from_data(css)
                                                                 # }}}2
 
     def add_simple_action(self, name, callback):
@@ -208,21 +289,25 @@ def define_classes():
       self.add_action(action)
       self.actions.append(action)
 
-    def do_activate(self):                                      # {{{2
-      if not self.win:
-        colours   = [ parse_colour(c)     # [fg,bg]+palette
-                      for c in self.config["colours"].split(":") ]
-        term_args = dict(spawned_callback = self.on_cmd_spawned,
-                         exited_callback  = self.on_cmd_exited,
-                         chdir_callback   = self.chdir,
-                         colours          = colours[:2]+[colours[2:]])
-        self.win  = AppWin(application = self, title = DESC,
-                           term_args = term_args)
-        self.win.connect("window-state-event", self.on_window_state_event)
+    def add_window(self):                                       # {{{2
+      colours   = [ parse_colour(c)     # [fg,bg]+palette
+                    for c in self.config["colours"].split(":") ]
+      term_args = dict(spawned_callback = self.on_cmd_spawned,
+                       exited_callback  = self.on_cmd_exited,
+                       chdir_callback   = self.chdir,
+                       colours          = colours[:2]+[colours[2:]])
+      self.win  = AppWin(application = self, title = DESC,
+                         term_args = term_args)
+      self.win.connect("window-state-event", self.on_window_state_event)
       self.win.show_all()
-      self.win.present()
-      if self.start_fs: self.win.fullscreen()
                                                                 # }}}2
+
+    def do_activate(self):
+      if not self.win:
+        self.add_window()
+        if self.start_fs: self.win.fullscreen()
+      elif self.stay_fs:  self.win.fullscreen()
+      self.win.present()
 
     def on_opendir(self, _action, _param):
       d = self.choose_folder()
@@ -239,9 +324,7 @@ def define_classes():
       self.quit()
 
     def on_run_script(self, name):
-      def f(_action, _param):
-        self.run_cmd(command(self.config, name))
-      return f
+      return lambda _action, _param: self.run_cmd(name)
 
     def on_pgup(self, _action, _param):
       v = self._vadj; v.set_value(v.get_value() - v.get_page_increment())
@@ -284,7 +367,7 @@ def define_classes():
         action.set_enabled(True)
       if self.stay_fs: self.win.fullscreen()
 
-    def on_window_state_event(self, widget, event):
+    def on_window_state_event(self, _widget, event):
       self.is_fs = bool(event.new_window_state &
                         Gdk.WindowState.FULLSCREEN)
 
@@ -306,18 +389,43 @@ def define_classes():
       )
       dialog.set_filename(cwd())                                # TODO
       try:
-        response = dialog.run()
-        if response == Gtk.ResponseType.OK:
+        if dialog.run() == Gtk.ResponseType.OK:
           return dialog.get_filename()
-        else:
-          return None
+        return None
       finally:
         dialog.destroy()
                                                                 # }}}2
 
-    # TODO: what about opts & args? ask or allow choosing?
-    def run_cmd(self, cmd):
-      self.win.term.sh(cmd, header = "$ {}\n".format(cmd))
+    def choose_filespec(self, name):                            # {{{1
+      files, store = self.list(), Gtk.ListStore(int, str)
+      n, m = len(files), len(MSPEC); w = len(str(n-1))
+      for i, x in enumerate(files):
+        store.append([i, "{:{w}d} {}".format(i+1, x, w = w)])
+      for i, x in enumerate(MSPEC):
+        store.append([n+i, x])
+      store.append([n+m, CUSTOM])
+      ans = FileSpecDialog(self.win, name, store).ask()
+      if ans is not None:
+        i = ans[0]
+        if i == n+m:
+          return EntryDialog(
+            self.win, "Please specify which file(s); e.g. '1,4-7'."
+          ).ask() or None
+        return str(i+1) if i < n else MSPEC[i-n]
+      return None
+                                                                # }}}1
+
+    def run_cmd(self, name):
+      cmd = command_w_filespec(self.config, name, self.choose_filespec)
+      if cmd is not None:
+        self.win.term.sh(cmd, header = "$ {}\n".format(cmd))
+
+    def list(self):
+      cmd = command(self.config, "_list", colour = False)
+      out = subprocess.run(SHELLRUN + [cmd], check = True,
+                           universal_newlines = True,
+                           stdout = subprocess.PIPE).stdout
+      return out.rstrip("\n").split("\n")
                                                                 # }}}1
 
 # === functions ===

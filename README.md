@@ -111,13 +111,9 @@ special characters (including spaces) appropriately; be careful!
 
 ## TODO
 
-* allow choices (input / choose) for arguments for mark etc.
-* cover most important commands!
-  - p, m, u, s
 * also allow setting --numeric-sort etc.
   - checkboxes in gui?
   - --options passed through to m
-  - --numbers?
 * handle exceptions better.
 * README etc., document, test?, package (deb + pip); screenshot?
 * use shell "m ..." only if no need to quote?!
