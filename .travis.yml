@@ -1,0 +1,17 @@
+sudo: false
+language: python
+script: python m-gui.py --help    # at least check for syntax errors
+jobs:
+  include:
+  - python: "3.5"
+  - python: "3.6"
+  - python: "3.7"
+    dist: xenial
+    sudo: true
+  - python: "3.8-dev"
+    dist: xenial
+    sudo: true
+  - python: "nightly"
+    dist: xenial
+    sudo: true
+  - python: "pypy3"
