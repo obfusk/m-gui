@@ -64,30 +64,31 @@ SHELLRUN    = [SHELL, "-c"]
 # === config ===
 
 # TODO
-def command(config, name, **override):
-  mopts = { **config["m_options"], **override }
+def command(cfg, name, **override):
+  mopts = { **cfg["m_options"], **override }
   opts  = " ".join( "--" + o for o in MOPTS if mopts.get(o) )
-  mcmd  = config["m_command"] + (" " + opts if opts else "")
-  return config["scripts"][name].replace("#{M}", mcmd)
+  mcmd  = cfg["m_command"] + (" " + opts if opts else "")
+  return cfg["scripts"][name].replace("#{M}", mcmd)
 
-def command_w_filespec(config, name, filespec, **override):
-  cmd = command(config, name, **override)
+def command_w_filespec(cfg, name, filespec, **override):
+  cmd = command(cfg, name, **override)
   if "#{FILESPEC}" in cmd:
     spec = filespec(name)
     if spec is None: return None
     cmd = cmd.replace("#{FILESPEC}", spec)
   return cmd
 
+def spec_with_mod(cfg, spec):
+  return spec.replace("#{MOD}", cfg["mod"])
+
 def config():                                                   # {{{1
-  user, cfg = user_config(), default_config()
+  cfg, user = default_config(), user_config()
   w_def     = lambda k: user.get(k, cfg.get(k))
-  return dict(
+  return dict({ k:w_def(k) for k in cfg.keys()
+                if k not in "scripts commands".split() }, **dict(
     scripts   = { **cfg["scripts"], **user.get("scripts", {}) },
     commands  = w_def("commands") + user.get("add_commands", []),
-    m_command = w_def("m_command"),
-    m_options = w_def("m_options"),
-    colours   = w_def("colours")
-  )
+  ))
                                                                 # }}}1
 
 def default_config():                                           # {{{1
@@ -108,23 +109,25 @@ def default_config():                                           # {{{1
       "_list"           : "#{M} --no-colour --safe ls"
     },
     commands = [
-      ["list            l         _List",
-       "list-nums       <Shift>l  List with Numbers",
-       "list-dirs       d         List _Directories",
-       "list-dirs-cols  <Shift>d  List Directories in Columns"],
-      ["next            n         Play _Next",
-       "next-new        <Shift>n  Play Next New"],
-      ["play            p         _Play File",
-       "mark            m         _Mark File",
-       "unmark          u         _Unmark File",
-       "skip            s         _Skip File"],
-      ["index           i         _Index Current Directory",
-       "alias           <Shift>a  Alias Current Directory"]
+      ["list            l           _List",
+       "list-nums       <#{MOD}>l   List with Numbers",
+       "list-dirs       d           List _Directories",
+       "list-dirs-cols  <#{MOD}>d   List Directories in Columns"],
+      ["next            n           Play _Next",
+       "next-new        <#{MOD}>n   Play Next New"],
+      ["play            p           _Play File",
+       "mark            m           _Mark File",
+       "unmark          u           _Unmark File",
+       "skip            s           _Skip File"],
+      ["index           i           _Index Current Directory",
+       "alias           <#{MOD}>a   Alias Current Directory"]
     ],
     m_command = MCMD, m_options = dict(colour = True),
     colours   = "#ffffff:#000000:#2e3436:#cc0000:#4e9a06:#c4a000:"
                 "#3465a4:#75507b:#06989a:#d3d7cf:#555753:#ef2929:"
-                "#8ae234:#fce94f:#729fcf:#ad7fa8:#34e2e2:#eeeeec"
+                "#8ae234:#fce94f:#729fcf:#ad7fa8:#34e2e2:#eeeeec",
+    scale = SCALE, fullscreen = False, stay_fullscreen = False,
+    mod = "Shift", bookmarks = []
   )
                                                                 # }}}1
 
@@ -155,13 +158,12 @@ def define_classes():
       self.chdir_callback   = chdir_callback
       if colours: self.set_colors(*colours)
 
-    def run(self, *cmd):                                        # {{{2
+    def run(self, *cmd):
       """Run command in terminal."""
       _, pid = self.spawn_sync(Vte.PtyFlags.DEFAULT, None, cmd, [],
                                self.FLG, None, None)
       if self.spawned_callback: self.spawned_callback(pid)
       time.sleep(0.1)   # seems to help
-                                                                # }}}2
 
     def clear(self):
       self.reset(False, True)
@@ -256,18 +258,18 @@ def define_classes():
     """Main application."""
 
     # TODO: Gio.ApplicationFlags.HANDLES_COMMAND_LINE ?
-    def __init__(self, *args, fullscreen = False,
+    def __init__(self, cfg, *args, fullscreen = False,
                  stay_fullscreen = False, **kwargs):
       super().__init__(*args, application_id = APPID,
                        flags = Gio.ApplicationFlags.NON_UNIQUE,
                        **kwargs)
       self.win, self.actions, self.noquit = None, [], False
-      self.is_fs, self.stay_fs, self.start_fs \
-        = False, stay_fullscreen, fullscreen
+      self.cfg, self.is_fs, self.stay_fs, self.start_fs \
+        = cfg, False, stay_fullscreen, fullscreen
 
     def do_startup(self):                                       # {{{2
       Gtk.Application.do_startup(self)
-      xml, self.config = menu_xml_and_config()
+      xml = menu_xml(self.cfg)
       Gtk.Application.do_startup(self)
       builder = Gtk.Builder.new_from_string(xml, -1)
       self.set_menubar(builder.get_object("menubar"))
@@ -294,7 +296,7 @@ def define_classes():
 
     def add_window(self):                                       # {{{2
       colours   = [ parse_colour(c)     # [fg,bg]+palette
-                    for c in self.config["colours"].split(":") ]
+                    for c in self.cfg["colours"].split(":") ]
       term_args = dict(spawned_callback = self.on_cmd_spawned,
                        exited_callback  = self.on_cmd_exited,
                        chdir_callback   = self.chdir,
@@ -420,11 +422,11 @@ def define_classes():
                                                                 # }}}1
 
     def run_cmd(self, name):
-      cmd = command_w_filespec(self.config, name, self.choose_filespec)
+      cmd = command_w_filespec(self.cfg, name, self.choose_filespec)
       if cmd is not None: self.win.term.sh(cmd)
 
     def list(self):
-      cmd = command(self.config, "_list", colour = False)
+      cmd = command(self.cfg, "_list", colour = False)
       out = subprocess.run(SHELLRUN + [cmd], check = True,
                            universal_newlines = True,
                            stdout = subprocess.PIPE).stdout
@@ -433,7 +435,7 @@ def define_classes():
 
 # === functions ===
 
-def import_gtk(scale = SCALE):
+def import_gtk(scale):
   global GLib, Gio, Gdk, Gtk, Pango, Vte
   os.environ["GDK_DPI_SCALE"] = str(scale)
   import gi
@@ -443,24 +445,23 @@ def import_gtk(scale = SCALE):
   from gi.repository import GLib, Gio, Gdk, Gtk, Pango, Vte
 
 def main(*args):                                                # {{{1
-  n = _argument_parser().parse_args(args)
+  cfg = config(); n = _argument_parser(cfg).parse_args(args)
   if n.show_config:
-    json.dump(config(), sys.stdout, indent = 2, sort_keys = True)
-    print()
+    json.dump(cfg, sys.stdout, indent = 2, sort_keys = True); print()
     return 0
-  import_gtk(scale = n.scale)
-  define_classes()
+  import_gtk(n.scale); define_classes()
   print("==> starting...")
-  App(fullscreen = n.fullscreen or n.stay_fullscreen,
+  App(cfg, fullscreen = n.fullscreen or n.stay_fullscreen,
       stay_fullscreen = n.stay_fullscreen).run()
   print("==> bye.")
   return 0
                                                                 # }}}1
 
-def _argument_parser():                                         # {{{1
+def _argument_parser(cfg):                                      # {{{1
   p = argparse.ArgumentParser(description = DESC)
-  p.set_defaults(scale = SCALE, fullscreen = False,
-                 stay_fullscreen = False)
+  p.set_defaults(scale            = cfg["scale"],
+                 fullscreen       = cfg["fullscreen"],
+                 stay_fullscreen  = cfg["stay_fullscreen"])
   p.add_argument("--version", action = "version",
                  version = "%(prog)s {}".format(__version__))
   p.add_argument("--show-config", action = "store_true",
@@ -495,15 +496,15 @@ def cwd():
     raise RuntimeError("OOPS -- this should never happen ")
   return pwd
 
-def menu_xml_and_config():                                      # {{{1
-  c = config()
+def menu_xml(cfg):                                              # {{{1
   return MENU_XML_HEAD + "".join(
     MENU_XML_SECTION_HEAD + "".join(
-      MENU_XML_ITEM.format(*map(xml_quote, spec.split(maxsplit = 2)))
+      MENU_XML_ITEM.format(*xml_quote(spec_with_mod(cfg, spec))
+                            .split(maxsplit = 2))
       for spec in sec
     ) + MENU_XML_SECTION_FOOT
-    for sec in c["commands"]
-  ) + MENU_XML_FOOT, c
+    for sec in cfg["commands"]
+  ) + MENU_XML_FOOT
                                                                 # }}}1
 
 def xml_quote(s):
