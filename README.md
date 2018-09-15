@@ -13,10 +13,10 @@
 <!--
 
 [![PyPI Version](https://img.shields.io/pypi/v/TODO.svg)](https://pypi.python.org/pypi/TODO)
-[![Build Status](https://travis-ci.org/obfusk/m-gui.svg?branch=master)](https://travis-ci.org/obfusk/m-gui)
 
 -->
 
+[![Build Status](https://travis-ci.org/obfusk/m-gui.svg?branch=master)](https://travis-ci.org/obfusk/m-gui)
 [![GPLv3+](https://img.shields.io/badge/license-GPLv3+-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 
 ## Description
