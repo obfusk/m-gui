@@ -26,7 +26,7 @@ See README.md for additional information and examples.
 
 # === imports ===
 
-import argparse, gi, json, os, re, subprocess, sys, time
+import argparse, json, os, re, subprocess, sys, time
 import xml.etree.ElementTree as ET
 
 from pathlib import Path
@@ -436,6 +436,7 @@ def define_classes():
 def import_gtk(scale = SCALE):
   global GLib, Gio, Gdk, Gtk, Pango, Vte
   os.environ["GDK_DPI_SCALE"] = str(scale)
+  import gi
   gi.require_version("Gtk", "3.0")
   gi.require_version("Gdk", "3.0")
   gi.require_version("Vte", "2.91")
