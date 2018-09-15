@@ -5,7 +5,7 @@
 #
 # File        : m-gui.py
 # Maintainer  : Felix C. Stegerman <flx@obfusk.net>
-# Date        : 2018-09-13
+# Date        : 2018-09-15
 #
 # Copyright   : Copyright (C) 2018  Felix C. Stegerman
 # Version     : v0.0.1
@@ -21,8 +21,8 @@ See README.md for additional information and examples.
 """
                                                                 # }}}1
 
-# Depends: python3:any (>= 3.5~), python3-gi, libgtk-3-0,
-# libvte-2.91-0, mmm (>= 0.4.2~)
+# Depends: python3:any (>=3.5~), python3-gi, libgtk-3-0,
+# libvte-2.91-0, mmm (>=0.4.2~)
 
 # === imports ===
 
@@ -143,8 +143,9 @@ def define_classes():
 
     FLG = GLib.SpawnFlags.DO_NOT_REAP_CHILD | GLib.SpawnFlags.SEARCH_PATH
 
-    def __init__(self, spawned_callback = None, exited_callback = None,
-                 chdir_callback = None, colours = None, *args, **kwargs):
+    def __init__(self, *args, spawned_callback = None,
+                 exited_callback = None, chdir_callback = None,
+                 colours = None, **kwargs):
       super().__init__(*args, **kwargs)
       self.set_scrollback_lines(SCROLLBACK)
       self.connect("child-exited", self.on_child_exited)
@@ -154,12 +155,8 @@ def define_classes():
       self.chdir_callback   = chdir_callback
       if colours: self.set_colors(*colours)
 
-    def run(self, *cmd, **kwargs):                              # {{{2
+    def run(self, *cmd):                                        # {{{2
       """Run command in terminal."""
-      info("*** RUN ***", cmd)
-      if kwargs.get("clear", True): self.clear()
-      header = kwargs.get("header")
-      if header: self.feed(header.replace("\n", "\n\r").encode())
       _, pid = self.spawn_sync(Vte.PtyFlags.DEFAULT, None, cmd, [],
                                self.FLG, None, None)
       if self.spawned_callback: self.spawned_callback(pid)
@@ -169,8 +166,13 @@ def define_classes():
     def clear(self):
       self.reset(False, True)
 
-    def sh(self, cmd = None, **kwargs):
-      self.run(*(SHELLRUN + [cmd] if cmd else SHELLCMD), **kwargs)
+    def run_header(self, cmd):
+      self.feed(("$ " + cmd + "\r\n").encode())
+
+    def sh(self, cmd = None):
+      c = cmd or " ".join(SHELLCMD)
+      print("$", c); self.clear(); self.run_header(c)
+      self.run(*(SHELLRUN + [cmd] if cmd else SHELLCMD))
 
     def on_child_exited(self, _term, status):
       if self.exited_callback: self.exited_callback(status)
@@ -186,7 +188,7 @@ def define_classes():
   class AppWin(Gtk.ApplicationWindow):                          # {{{1
     """Main application window."""
 
-    def __init__(self, term_args = {}, *args, **kwargs):
+    def __init__(self, *args, term_args = {}, **kwargs):
       super().__init__(*args, **kwargs)
       self.set_default_size(*SIZE)
       self.cwd_lbl, self.term = Gtk.Label(cwd()), Term(**term_args)
@@ -312,10 +314,10 @@ def define_classes():
 
     def on_opendir(self, _action, _param):
       d = self.choose_folder()
-      if d is not None: self.chdir_and_clear(d)
+      if d is not None: self.chdir_as_cmd(d)
 
     def on_dirup(self, _action, _param):
-      self.chdir_and_clear(dir_up())
+      self.chdir_as_cmd(dir_up())
 
     def on_shell(self, _action, _param):
       self.noquit = True
@@ -356,14 +358,14 @@ def define_classes():
         self.win.fullscreen()
 
     def on_cmd_spawned(self, pid):
-      info("*** SPAWN ***", "pid =", pid)
+      # info("*** SPAWN ***", "pid =", pid)
       for action in self.actions:
         if self.noquit or action.get_name() != "quit":
           action.set_enabled(False)
       self.noquit = False
 
     def on_cmd_exited(self, status):
-      info("*** EXIT ***", "status =", status)
+      # info("*** EXIT ***", "status =", status)
       for action in self.actions:
         action.set_enabled(True)
       if self.stay_fs: self.win.fullscreen()
@@ -374,12 +376,13 @@ def define_classes():
 
     def chdir(self, d):
       chdir(d)
-      info("*** CHDIR ***", d)
+      print("$ cd", d)
       self.win.cwd_lbl.set_text(cwd())
 
-    def chdir_and_clear(self, d):
+    def chdir_as_cmd(self, d):
       self.chdir(d)
       self.win.term.clear()
+      self.win.term.run_header("cd " + d)
 
     def choose_folder(self):                                    # {{{2
       dialog = Gtk.FileChooserDialog(
@@ -418,8 +421,7 @@ def define_classes():
 
     def run_cmd(self, name):
       cmd = command_w_filespec(self.config, name, self.choose_filespec)
-      if cmd is not None:
-        self.win.term.sh(cmd, header = "$ {}\n".format(cmd))
+      if cmd is not None: self.win.term.sh(cmd)
 
     def list(self):
       cmd = command(self.config, "_list", colour = False)
@@ -447,8 +449,10 @@ def main(*args):                                                # {{{1
     return 0
   import_gtk(scale = n.scale)
   define_classes()
+  print("==> starting...")
   App(fullscreen = n.fullscreen or n.stay_fullscreen,
       stay_fullscreen = n.stay_fullscreen).run()
+  print("==> bye.")
   return 0
                                                                 # }}}1
 
