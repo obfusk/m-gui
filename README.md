@@ -40,7 +40,15 @@ $ m-gui --show-config   # show configuration
 
 ## Requirements
 
-Python >= 3.5, PyGObject, GTK+ 3, VTE; and `m` of course.
+Python >= 3.5, PyGObject, GTK+ 3,
+[VTE](https://wiki.gnome.org/Apps/Terminal/VTE); and `m` of course.
+
+NB: there will be a Debian package soon™, but for now you can install
+the additional dependencies (if you're missing any) on Debian using:
+
+```bash
+$ sudo apt install python3-gi libgtk-3-0 libvte-2.91-0
+```
 
 ## Installing
 
