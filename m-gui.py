@@ -158,10 +158,10 @@ def define_classes():
 
     FLG = GLib.SpawnFlags.DO_NOT_REAP_CHILD | GLib.SpawnFlags.SEARCH_PATH
 
-    def __init__(self, *args, spawned_callback = None,
+    def __init__(self, *, spawned_callback = None,
                  exited_callback = None, chdir_callback = None,
                  colours = None, **kwargs):
-      super().__init__(*args, **kwargs)
+      super().__init__(**kwargs)
       self.set_scrollback_lines(SCROLLBACK)
       self.connect("child-exited", self.on_child_exited)
       self.connect("current-directory-uri-changed", self.on_cdu_changed)
@@ -170,6 +170,7 @@ def define_classes():
       self.chdir_callback   = chdir_callback
       if colours: self.set_colors(*colours)
 
+    # TODO: use spawn_async when it becomes available
     def run(self, *cmd):
       """Run command in terminal."""
       _, pid = self.spawn_sync(Vte.PtyFlags.DEFAULT, None, cmd, [],
@@ -205,10 +206,11 @@ def define_classes():
   class AppWin(Gtk.ApplicationWindow):                          # {{{1
     """Main application window."""
 
-    def __init__(self, *args, term_args = {}, **kwargs):
-      super().__init__(*args, **kwargs)
+    def __init__(self, *, term_args = {}, **kwargs):
+      super().__init__(**kwargs)
       self.set_default_size(*SIZE)
-      self.cwd_lbl, self.term = Gtk.Label(cwd()), Term(**term_args)
+      self.cwd_lbl  = Gtk.Label(label = cwd())
+      self.term     = Term(**term_args)
       self.cwd_lbl.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
       box = Gtk.Box(orientation = Gtk.Orientation.VERTICAL)
       box.pack_start(self.cwd_lbl, False, True, 0)
@@ -221,11 +223,9 @@ def define_classes():
 
     def __init__(self, parent, title, store, *, monospace = False,
                  active = 0, text_index = 1):
-      super().__init__(
-        title, parent, 0,
-        (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-         Gtk.STOCK_OK, Gtk.ResponseType.OK)
-      )
+      super().__init__(title = title, transient_for = parent)
+      self.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                       Gtk.STOCK_OK, Gtk.ResponseType.OK)
       self.store = store
       self.chooser = Gtk.ComboBox.new_with_model(store)
       if monospace:
@@ -255,8 +255,10 @@ def define_classes():
 
     def __init__(self, parent, message, *, secondary = None,
                  entry_text = None, title = None):
-      super().__init__(parent, 0, Gtk.MessageType.QUESTION,
-                       Gtk.ButtonsType.OK_CANCEL, message)
+      super().__init__(transient_for  = parent,
+                       type           = Gtk.MessageType.QUESTION,
+                       buttons        = Gtk.ButtonsType.OK_CANCEL,
+                       message_format = message)
       if title: self.set_title(title)
       if secondary: self.format_secondary_text(secondary)
       self.entry = Gtk.Entry()
@@ -276,9 +278,9 @@ def define_classes():
     """Main application."""
 
     # TODO: Gio.ApplicationFlags.HANDLES_COMMAND_LINE ?
-    def __init__(self, cfg, *args, fullscreen = False,
+    def __init__(self, cfg, *, fullscreen = False,
                  stay_fullscreen = False, **kwargs):
-      super().__init__(*args, application_id = APPID,
+      super().__init__(application_id = APPID,
                        flags = Gio.ApplicationFlags.NON_UNIQUE,
                        **kwargs)
       self.win, self.actions, self.noquit = None, [], False
@@ -428,11 +430,11 @@ def define_classes():
 
     def choose_folder(self):                                    # {{{2
       dialog = Gtk.FileChooserDialog(
-        "Please choose a folder", self.win,
-        Gtk.FileChooserAction.SELECT_FOLDER,
-        (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-         Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
+        title = "Please choose a folder", transient_for = self.win,
+        action = Gtk.FileChooserAction.SELECT_FOLDER
       )
+      dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                         Gtk.STOCK_OK, Gtk.ResponseType.OK)
       dialog.set_filename(cwd())
       with run_dialog(dialog) as ok:
         return ok and dialog.get_filename()

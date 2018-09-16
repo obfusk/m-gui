@@ -158,6 +158,8 @@ special characters (including spaces) appropriately; be careful!
 * handle exceptions better.
 * README etc., document, test?, package (deb + pip); screenshot?
 * use shell "m ..." only if no need to quote?!
+* running w/ `python3 -Wd` results in DeprecationWarnings
+  - Vte.Terminal.spawn_async not yet available
 
 ## License
 
