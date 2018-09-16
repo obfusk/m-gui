@@ -9,4 +9,4 @@ htmlcov
 
 /build
 /dist
-/mmm-gui.egg-info
+/mmm_gui.egg-info

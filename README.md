@@ -10,7 +10,7 @@
 
 <!-- }}}1 -->
 
-<!-- [![PyPI Version](https://img.shields.io/pypi/v/mmm-gui.svg)](https://pypi.python.org/pypi/mmm-gui) -->
+[![PyPI Version](https://img.shields.io/pypi/v/mmm-gui.svg)](https://pypi.python.org/pypi/mmm-gui)
 [![Build Status](https://travis-ci.org/obfusk/m-gui.svg?branch=master)](https://travis-ci.org/obfusk/m-gui)
 [![GPLv3+](https://img.shields.io/badge/license-GPLv3+-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 
@@ -47,13 +47,11 @@ another name).
 You may want to clone the repository instead of just downloading
 `m-gui.py` to be able to get new versions easily.
 
-<!--
 Alternatively, you can install mmm-gui using pip (the Python package
 manager) or build and install a Debian package.
 
 NB: the pip and Debian packages are called `mmm-gui` instead of
 `m-gui`.
--->
 
 ### Using git
 
@@ -71,14 +69,12 @@ $ cd /some/convenient/dir/obfusk-m-gui
 $ git pull
 ```
 
-<!--
 ### Using pip
 
 ```bash
 $ pip3 install --user mmm-gui # for Debian; on other OS's you may need
                               # pip instead of pip3 and/or no --user
 ```
--->
 
 ### Building a Debian package
 

@@ -1,7 +1,6 @@
 SHELL     := bash
 PY        ?= python3
 ME        := m-gui.py
-PKG       := mmm-gui
 
 TOUCH     := README.md debian/copyright
 
@@ -21,7 +20,7 @@ coverage:
 
 clean:
 	rm -fr .coverage htmlcov/
-	rm -fr README.rst m-gui.1 m-gui.1.md build/ dist/ $(PKG).egg-info/
+	rm -fr README.rst m-gui.1 m-gui.1.md build/ dist/ mmm_gui.egg-info/
 	find -name '*.pyc' -delete
 	find -name __pycache__ -delete
 
