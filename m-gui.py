@@ -135,7 +135,7 @@ def user_config():
   if not cf.exists(): return {}
   with cf.open() as f: return json.load(f)
 
-def add_bookmark(d):                                            # {{{1
+def save_bookmark(d):                                           # {{{1
   user = user_config(); bms = user.setdefault("bookmarks", [])
   if d in bms: return False
   user["bookmarks"].append(d)
@@ -284,6 +284,7 @@ def define_classes():
       self.win, self.actions, self.noquit = None, [], False
       self.cfg, self.is_fs, self.stay_fs, self.start_fs \
         = cfg, False, stay_fullscreen, fullscreen
+      self.cfg["bookmarks"] = set(self.cfg["bookmarks"])        # TODO
 
     def do_startup(self):                                       # {{{2
       Gtk.Application.do_startup(self)
@@ -345,8 +346,10 @@ def define_classes():
       self._choose(self.choose_bookmark)
 
     def on_savebm(self, _action, _param):
-      saved = add_bookmark(cwd())
+      d     = cwd()
+      saved = save_bookmark(d)
       msg   = "bookmark added" if saved else "already bookmarked"
+      self.cfg["bookmarks"].add(d)
       self.win.term.clear()
       self.win.term.header("# " + msg + "\n")
 
