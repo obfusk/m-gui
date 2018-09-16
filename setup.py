@@ -18,7 +18,7 @@ setup(
   license           = "GPLv3+",
   classifiers       = [
     "Development Status :: 4 - Beta",
-    "Environment :: X11 Applications :: GTK"
+    "Environment :: X11 Applications :: GTK",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: POSIX :: Linux",
