@@ -1,6 +1,6 @@
 sudo: false
 language: python
-script: python m-gui.py --help    # at least check for syntax errors
+script: make test_verbose PY=python
 jobs:
   include:
   - python: "3.5"

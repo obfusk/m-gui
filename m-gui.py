@@ -21,9 +21,6 @@ See README.md for additional information and examples.
 """
                                                                 # }}}1
 
-# Depends: python3:any (>=3.5~), python3-gi, libgtk-3-0,
-# libvte-2.91-0, mmm (>=0.4.2~)
-
 # === imports ===
 
 import argparse, contextlib, json, os, re, subprocess, sys, time
@@ -728,7 +725,8 @@ MENU_XML_SECTION_FOOT = """
 
 # === run ===
 
-if __name__ == "__main__":
-  sys.exit(main(*sys.argv[1:]))
+def _main(): sys.exit(main(*sys.argv[1:]))
+
+if __name__ == "__main__": _main()
 
 # vim: set tw=70 sw=2 sts=2 et fdm=marker :

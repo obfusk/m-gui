@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+import importlib
+m_gui = importlib.import_module("m-gui")
+m_gui._main()

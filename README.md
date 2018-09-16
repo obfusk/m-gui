@@ -10,12 +10,7 @@
 
 <!-- }}}1 -->
 
-<!--
-
-[![PyPI Version](https://img.shields.io/pypi/v/TODO.svg)](https://pypi.python.org/pypi/TODO)
-
--->
-
+<!-- [![PyPI Version](https://img.shields.io/pypi/v/mmm-gui.svg)](https://pypi.python.org/pypi/mmm-gui) -->
 [![Build Status](https://travis-ci.org/obfusk/m-gui.svg?branch=master)](https://travis-ci.org/obfusk/m-gui)
 [![GPLv3+](https://img.shields.io/badge/license-GPLv3+-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 
@@ -43,13 +38,6 @@ $ m-gui --show-config   # show configuration
 Python >= 3.5, PyGObject, GTK+ 3,
 [VTE](https://wiki.gnome.org/Apps/Terminal/VTE); and `m` of course.
 
-NB: there will be a Debian package soon™, but for now you can install
-the additional dependencies (if you're missing any) on Debian using:
-
-```bash
-$ sudo apt install python3-gi libgtk-3-0 libvte-2.91-0
-```
-
 ## Installing
 
 You can just put `m-gui.py` somewhere on your `$PATH` (in e.g.
@@ -58,6 +46,14 @@ another name).
 
 You may want to clone the repository instead of just downloading
 `m-gui.py` to be able to get new versions easily.
+
+<!--
+Alternatively, you can install mmm using pip (the Python package
+manager) or build and install a Debian package.
+
+NB: the pip and Debian packages are called `mmm-gui` instead of
+`m-gui`.
+-->
 
 ### Using git
 
@@ -73,6 +69,27 @@ Updating:
 ```bash
 $ cd /some/convenient/dir/obfusk-m-gui
 $ git pull
+```
+
+<!--
+### Using pip
+
+```bash
+$ pip3 install --user mmm-gui # for Debian; on other OS's you may need
+                              # pip instead of pip3 and/or no --user
+```
+-->
+
+### Building a Debian package
+
+```bash
+$ sudo apt install debhelper dh-python pandoc # install build dependencies
+$ sudo apt install python3-gi libgtk-3-0 libvte-2.91-0  # run dependencies
+$ cd /some/convenient/dir
+$ git clone https://github.com/obfusk/m-gui.git obfusk-m-gui
+$ cd obfusk-m-gui
+$ dpkg-buildpackage
+$ sudo dpkg -i ../mmm-gui_*_all.deb
 ```
 
 ## Configuration File
@@ -151,12 +168,13 @@ special characters (including spaces) appropriately; be careful!
 
 ## TODO
 
+* update README + version (4x + dch) + package (deb + pip)!
 * `ack TODO`
 * also allow setting --numeric-sort etc. on the fly
   - checkboxes in gui?
   - --options passed through to m?
 * handle exceptions better.
-* README etc., document, test?, package (deb + pip); screenshot?
+* document, test!?; screenshot?
 * use shell "m ..." only if no need to quote?!
 * running w/ `python3 -Wd` results in DeprecationWarnings
   - Vte.Terminal.spawn_async not yet available

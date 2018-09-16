@@ -1,0 +1,12 @@
+% m-gui(1) v0.0.1 | General Commands Manual
+% Felix C. Stegerman <flx@obfusk.net>
+% 2018-09-16
+
+# NAME
+
+m-gui - minimalistic media manager - gui
+
+# SYNOPSIS
+
+m-gui \[\<options>]
+

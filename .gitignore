@@ -1,0 +1,12 @@
+*.pyc
+
+.coverage
+htmlcov
+
+/README.rst
+/m-gui.1
+/m-gui.1.md
+
+/build
+/dist
+/mmm-gui.egg-info
