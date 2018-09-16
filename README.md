@@ -5,7 +5,7 @@
     Date        : 2018-09-16
 
     Copyright   : Copyright (C) 2018  Felix C. Stegerman
-    Version     : v0.1.0
+    Version     : v0.1.1
     License     : GPLv3+
 
 <!-- }}}1 -->
