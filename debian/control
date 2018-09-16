@@ -18,5 +18,5 @@ Description: minimalistic media manager - gui
  m keeps track of which files you've played (or are still playing) and
  thus allows you to easily continue playing the next file (using vlc
  or mpv).
-
+ .
  This package contains the GUI wrapper for m: m-gui.

@@ -48,7 +48,7 @@ You may want to clone the repository instead of just downloading
 `m-gui.py` to be able to get new versions easily.
 
 <!--
-Alternatively, you can install mmm using pip (the Python package
+Alternatively, you can install mmm-gui using pip (the Python package
 manager) or build and install a Debian package.
 
 NB: the pip and Debian packages are called `mmm-gui` instead of
