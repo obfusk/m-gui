@@ -69,8 +69,34 @@ $ git pull
 
 ## Configuration File
 
-You can set/override some defaults in `~/.obfusk-m/gui.json`; for
-example:
+You can configure some settings in `~/.obfusk-m/gui.json`.  To see the
+current configuration, run:
+
+```bash
+$ m-gui --show-config
+```
+
+### Bookmarks
+
+```json
+{
+  "bookmarks": [
+    "/some/media/dir",
+    "/some/other/media/dir"
+  ]
+}
+```
+
+### Defaults
+
+```json
+{
+  "scale": 2.0,
+  "stay_fullscreen": true
+}
+```
+
+### Adding commands
 
 ```json
 {
@@ -81,6 +107,19 @@ example:
   ],
   "scripts": {
     "mark-and-next": "#{M} mark playing && #{M} next"
+  }
+}
+```
+
+### m options
+
+```json
+{
+  "m_options": {
+    "colour": true,
+    "ignorecase": true,
+    "numeric-sort": true,
+    "show-hidden": true
   }
 }
 ```
@@ -96,34 +135,15 @@ example:
 NB: the command is passed to the shell, so you'll need to escape/quote
 special characters (including spaces) appropriately; be careful!
 
-### m options
-
-```json
-{
-  "m_options": {
-    "colour": true,
-    "ignorecase": true,
-    "numeric-sort": true,
-    "show-hidden": true
-  }
-}
-```
-
 ## TODO
 
-* also allow setting --numeric-sort etc.
+* `ack TODO`
+* also allow setting --numeric-sort etc. on the fly
   - checkboxes in gui?
-  - --options passed through to m
+  - --options passed through to m?
 * handle exceptions better.
 * README etc., document, test?, package (deb + pip); screenshot?
 * use shell "m ..." only if no need to quote?!
-
-### Maybe
-
-* about dialog, help etc.
-* menu icons?
-* control w/ cursor+enter? // terminal vs list view?
-* allow no accel?!
 
 ## License
 

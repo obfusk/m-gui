@@ -26,7 +26,7 @@ See README.md for additional information and examples.
 
 # === imports ===
 
-import argparse, json, os, re, subprocess, sys, time
+import argparse, contextlib, json, os, re, subprocess, sys, time
 import xml.etree.ElementTree as ET
 
 from pathlib import Path
@@ -54,6 +54,7 @@ CUSTOM      = "custom..."
 
 SCALE       = 1.5
 SCROLLBACK  = 1024
+COMBOWRAP   = 80
 
 # NB: we run a login shell b/c we need /etc/profile.d/vte-2.91.sh to
 # be sourced for current_directory_uri to work.
@@ -63,7 +64,6 @@ SHELLRUN    = [SHELL, "-c"]
 
 # === config ===
 
-# TODO
 def command(cfg, name, **override):
   mopts = { **cfg["m_options"], **override }
   opts  = " ".join( "--" + o for o in MOPTS if mopts.get(o) )
@@ -78,8 +78,7 @@ def command_w_filespec(cfg, name, filespec, **override):
     cmd = cmd.replace("#{FILESPEC}", spec)
   return cmd
 
-def spec_with_mod(cfg, spec):
-  return spec.replace("#{MOD}", cfg["mod"])
+def xml_with_mod(cfg, xml): return xml.replace("#{MOD}", cfg["mod"])
 
 def config():                                                   # {{{1
   cfg, user = default_config(), user_config()
@@ -115,10 +114,10 @@ def default_config():                                           # {{{1
        "list-dirs-cols  <#{MOD}>d   List Directories in Columns"],
       ["next            n           Play _Next",
        "next-new        <#{MOD}>n   Play Next New"],
-      ["play            p           _Play File",
-       "mark            m           _Mark File",
-       "unmark          u           _Unmark File",
-       "skip            s           _Skip File"],
+      ["play            p           _Play File...",
+       "mark            m           _Mark File...",
+       "unmark          u           _Unmark File...",
+       "skip            s           _Skip File..."],
       ["index           i           _Index Current Directory",
        "alias           <#{MOD}>a   Alias Current Directory"]
     ],
@@ -201,57 +200,60 @@ def define_classes():
       self.add(box)
                                                                 # }}}1
 
-  class FileSpecDialog(Gtk.Dialog):                             # {{{1
-    """File spec chooser dialog."""
+  class ComboBoxDialog(Gtk.Dialog):                             # {{{1
+    """ComboBox chooser dialog."""
 
-    def __init__(self, parent, what, store):
+    def __init__(self, parent, title, store, *, monospace = False,
+                 active = 0, text_index = 1):
       super().__init__(
-        "Please choose a file to " + what, parent, 0,
+        title, parent, 0,
         (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
          Gtk.STOCK_OK, Gtk.ResponseType.OK)
       )
       self.store = store
       self.chooser = Gtk.ComboBox.new_with_model(store)
-      self.chooser.get_style_context().add_class("monospace")
-      self.chooser.set_active(len(store)-1)
-      renderer = Gtk.CellRendererText()
+      if monospace:
+        self.chooser.get_style_context().add_class("monospace")
+      if active is not None:
+        self.chooser.set_active(active % len(store))
+      renderer                        = Gtk.CellRendererText()
+      renderer.props.ellipsize        = Pango.EllipsizeMode.MIDDLE
+      renderer.props.max_width_chars  = COMBOWRAP               # TODO
       self.chooser.pack_start(renderer, True)
-      self.chooser.add_attribute(renderer, "text", 1)
+      self.chooser.add_attribute(renderer, "text", text_index)
       self.get_content_area().pack_start(self.chooser, True, True, 0)
       self.set_default_response(Gtk.ResponseType.OK)
       self.show_all()
 
     def ask(self):
-      try:
-        if self.run() == Gtk.ResponseType.OK:
+      """Runs the dialog and returns the selected store row or None."""
+      with run_dialog(self) as ok:
+        if ok:
           it = self.chooser.get_active_iter()
           if it is not None: return self.store[it]
         return None
-      finally:
-        self.destroy()
                                                                 # }}}1
 
   class EntryDialog(Gtk.MessageDialog):                         # {{{1
     """Entry dialog."""
 
-    def __init__(self, parent, message, text = None, title = None):
+    def __init__(self, parent, message, *, secondary = None,
+                 entry_text = None, title = None):
       super().__init__(parent, 0, Gtk.MessageType.QUESTION,
                        Gtk.ButtonsType.OK_CANCEL, message)
       if title: self.set_title(title)
+      if secondary: self.format_secondary_text(secondary)
       self.entry = Gtk.Entry()
-      if text: self.entry.set_text(text)
+      if entry_text: self.entry.set_text(entry_text)
       self.entry.set_activates_default(True)
       self.get_message_area().pack_end(self.entry, True, True, 0)
       self.set_default_response(Gtk.ResponseType.OK)
       self.show_all()
 
     def ask(self):
-      try:
-        if self.run() == Gtk.ResponseType.OK:
-          return self.entry.get_text()
-        return None
-      finally:
-        self.destroy()
+      """Runs the dialog and returns the entered text or None."""
+      with run_dialog(self) as ok:
+        return ok and self.entry.get_text()
                                                                 # }}}1
 
   class App(Gtk.Application):                                   # {{{1
@@ -314,12 +316,21 @@ def define_classes():
       elif self.stay_fs:  self.win.fullscreen()
       self.win.present()
 
+    def on_opensubdir(self, _action, _param):
+      self._choose(self.choose_subdir)
+
     def on_opendir(self, _action, _param):
-      d = self.choose_folder()
-      if d is not None: self.chdir_as_cmd(d)
+      self._choose(self.choose_folder)
 
     def on_dirup(self, _action, _param):
       self.chdir_as_cmd(dir_up())
+
+    def on_openbm(self, _action, _param):
+      self._choose(self.choose_bookmark)
+
+    def _choose(self, f):
+      d = f()
+      if d is not None: self.chdir_as_cmd(d)
 
     def on_shell(self, _action, _param):
       self.noquit = True
@@ -332,26 +343,26 @@ def define_classes():
       return lambda _action, _param: self.run_cmd(name)
 
     def on_pgup(self, _action, _param):
-      v = self._vadj; v.set_value(v.get_value() - v.get_page_increment())
+      self._scroll(lambda v, val: val - v.get_page_increment())
 
     def on_pgdn(self, _action, _param):
-      v = self._vadj; v.set_value(v.get_value() + v.get_page_increment())
+      self._scroll(lambda v, val: val + v.get_page_increment())
 
     def on_lnup(self, _action, _param):
-      v = self._vadj; v.set_value(v.get_value() - v.get_step_increment())
+      self._scroll(lambda v, val: val - v.get_step_increment())
 
     def on_lndn(self, _action, _param):
-      v = self._vadj; v.set_value(v.get_value() + v.get_step_increment())
+      self._scroll(lambda v, val: val + v.get_step_increment())
 
     def on_top(self, _action, _param):
-      v = self._vadj; v.set_value(v.get_lower())
+      self._scroll(lambda v, _: v.get_lower())
 
     def on_bottom(self, _action, _param):
-      v = self._vadj; v.set_value(v.get_upper())
+      self._scroll(lambda v, _: v.get_upper())
 
-    @property
-    def _vadj(self):
-      return self.win.term.props.vadjustment
+    def _scroll(self, f):
+      v = self.win.term.props.vadjustment
+      v.set_value(f(v, v.get_value()))
 
     def on_fullscreen(self, _action, _param):
       if self.is_fs:
@@ -386,6 +397,10 @@ def define_classes():
       self.win.term.clear()
       self.win.term.run_header("cd " + d)
 
+    def choose_subdir(self):
+      d = self._combo_ask("Please choose a subdirectory", self.subdirs())
+      return d and str(cwd() / Path(d))
+
     def choose_folder(self):                                    # {{{2
       dialog = Gtk.FileChooserDialog(
         "Please choose a folder", self.win,
@@ -393,16 +408,23 @@ def define_classes():
         (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
          Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
       )
-      dialog.set_filename(cwd())                                # TODO
-      try:
-        if dialog.run() == Gtk.ResponseType.OK:
-          return dialog.get_filename()
-        return None
-      finally:
-        dialog.destroy()
+      dialog.set_filename(cwd())
+      with run_dialog(dialog) as ok:
+        return ok and dialog.get_filename()
                                                                 # }}}2
 
-    def choose_filespec(self, name):                            # {{{1
+    def choose_bookmark(self):
+      return self._combo_ask("Please choose a bookmark",
+                             self.cfg["bookmarks"])
+
+    def _combo_ask(self, title, data):
+      if len(data) == 0: return None                            # TODO
+      store = Gtk.ListStore(int, str)
+      for i, x in enumerate(data): store.append([i, x])
+      ans = ComboBoxDialog(self.win, title, store, monospace = True).ask()
+      return None if ans is None else data[ans[0]]
+
+    def choose_filespec(self, name):                            # {{{2
       files, store = self.list(), Gtk.ListStore(int, str)
       n, m = len(files), len(MSPEC); w = len(str(n-1))
       for i, x in enumerate(files):
@@ -410,20 +432,34 @@ def define_classes():
       for i, x in enumerate(MSPEC):
         store.append([n+i, x])
       store.append([n+m, CUSTOM])
-      ans = FileSpecDialog(self.win, name, store).ask()
+      ans = ComboBoxDialog(self.win, "Please choose a file to " + name,
+                           store, monospace = True, active = -1).ask()
       if ans is not None:
         i = ans[0]
         if i == n+m:
           return EntryDialog(
-            self.win, "Please specify which file(s); e.g. '1,4-7'."
+            self.win, "Please specify which file(s)",
+            secondary = "e.g. '1,4-7'"
           ).ask() or None
         return str(i+1) if i < n else MSPEC[i-n]
       return None
-                                                                # }}}1
+                                                                # }}}2
 
     def run_cmd(self, name):
       cmd = command_w_filespec(self.cfg, name, self.choose_filespec)
       if cmd is not None: self.win.term.sh(cmd)
+
+    def subdirs(self):
+      d = Path(cwd())
+      return sorted(
+        ( x.name for x in self._iterdir(d) if x.is_dir() ),
+        key = lambda x: x.lower()                               # TODO
+      )
+
+    def _iterdir(self, d):
+      return ( x for x in d.iterdir()
+               if self.cfg["m_options"].get("show-hidden")
+               or not x.name.startswith(".") )
 
     def list(self):
       cmd = command(self.cfg, "_list", colour = False)
@@ -435,7 +471,7 @@ def define_classes():
 
 # === functions ===
 
-def import_gtk(scale):
+def import_gtk(scale):                                          # {{{1
   global GLib, Gio, Gdk, Gtk, Pango, Vte
   os.environ["GDK_DPI_SCALE"] = str(scale)
   import gi
@@ -443,6 +479,7 @@ def import_gtk(scale):
   gi.require_version("Gdk", "3.0")
   gi.require_version("Vte", "2.91")
   from gi.repository import GLib, Gio, Gdk, Gtk, Pango, Vte
+                                                                # }}}1
 
 def main(*args):                                                # {{{1
   cfg = config(); n = _argument_parser(cfg).parse_args(args)
@@ -459,9 +496,8 @@ def main(*args):                                                # {{{1
 
 def _argument_parser(cfg):                                      # {{{1
   p = argparse.ArgumentParser(description = DESC)
-  p.set_defaults(scale            = cfg["scale"],
-                 fullscreen       = cfg["fullscreen"],
-                 stay_fullscreen  = cfg["stay_fullscreen"])
+  p.set_defaults(**{ k:cfg[k] for k in
+                     "scale fullscreen stay_fullscreen".split() })
   p.add_argument("--version", action = "version",
                  version = "%(prog)s {}".format(__version__))
   p.add_argument("--show-config", action = "store_true",
@@ -470,9 +506,13 @@ def _argument_parser(cfg):                                      # {{{1
                  help = "set $GDK_DPI_SCALE to SCALE")
   p.add_argument("--fullscreen", "--fs", action = "store_true",
                  help = "start full screen")
+  p.add_argument("--no-fullscreen", "--no-fs",
+                 action = "store_false", dest = "fullscreen")
   p.add_argument("--stay-fullscreen", "--stay-fs",
                  action = "store_true",
                  help   = "start and stay full screen")
+  p.add_argument("--no-stay-fullscreen", "--no-stay-fs",
+                 action = "store_false", dest = "stay_fullscreen")
   return p
                                                                 # }}}1
 
@@ -497,14 +537,15 @@ def cwd():
   return pwd
 
 def menu_xml(cfg):                                              # {{{1
-  return MENU_XML_HEAD + "".join(
-    MENU_XML_SECTION_HEAD + "".join(
-      MENU_XML_ITEM.format(*xml_quote(spec_with_mod(cfg, spec))
-                            .split(maxsplit = 2))
-      for spec in sec
-    ) + MENU_XML_SECTION_FOOT
-    for sec in cfg["commands"]
-  ) + MENU_XML_FOOT
+  return xml_with_mod(
+    cfg, MENU_XML_HEAD + "".join(
+      MENU_XML_SECTION_HEAD + "".join(
+        MENU_XML_ITEM.format(*xml_quote(spec).split(maxsplit = 2))
+        for spec in sec
+      ) + MENU_XML_SECTION_FOOT
+      for sec in cfg["commands"]
+    ) + MENU_XML_FOOT
+  )
                                                                 # }}}1
 
 def xml_quote(s):
@@ -520,6 +561,16 @@ def parse_colour(s):
   if not c.parse(s): raise ValueError("colour parse failed: {}".format(s))
   return c
 
+@contextlib.contextmanager
+def run_dialog(dialog):
+  try:
+    if dialog.run() == Gtk.ResponseType.OK:
+      yield True
+    else:
+      yield None
+  finally:
+    dialog.destroy()
+
 # === data ===
 
                                                                 # {{{1
@@ -531,14 +582,24 @@ MENU_XML_HEAD = """
       <attribute name="label" translatable="yes">_File</attribute>
       <section>
         <item>
-          <attribute name="action">app.opendir</attribute>
-          <attribute name="label" translatable="yes">_Open Directory...</attribute>
+          <attribute name="action">app.opensubdir</attribute>
+          <attribute name="label" translatable="yes">_Open Subdirectory...</attribute>
           <attribute name="accel">o</attribute>
+        </item>
+        <item>
+          <attribute name="action">app.opendir</attribute>
+          <attribute name="label" translatable="yes">Open _Directory...</attribute>
+          <attribute name="accel">&lt;#{MOD}&gt;o</attribute>
         </item>
         <item>
           <attribute name="action">app.dirup</attribute>
           <attribute name="label" translatable="yes">Open _Parent Directory (..)</attribute>
           <attribute name="accel">period</attribute>
+        </item>
+        <item>
+          <attribute name="action">app.openbm</attribute>
+          <attribute name="label" translatable="yes">Open _Bookmark...</attribute>
+          <attribute name="accel">b</attribute>
         </item>
       </section>
       <section>
