@@ -5,7 +5,7 @@
 #
 # File        : m-gui.py
 # Maintainer  : Felix C. Stegerman <flx@obfusk.net>
-# Date        : 2018-09-15
+# Date        : 2018-09-16
 #
 # Copyright   : Copyright (C) 2018  Felix C. Stegerman
 # Version     : v0.0.1
@@ -131,9 +131,22 @@ def default_config():                                           # {{{1
                                                                 # }}}1
 
 def user_config():
-  cf = HOME / CFG / GUICFGFILE
+  cf = user_config_file()
   if not cf.exists(): return {}
   with cf.open() as f: return json.load(f)
+
+def add_bookmark(d):                                            # {{{1
+  user = user_config(); bms = user.setdefault("bookmarks", [])
+  if d in bms: return False
+  user["bookmarks"].append(d)
+  (HOME / CFG).mkdir(exist_ok = True)
+  with user_config_file().open("w") as f:
+    json.dump(user, f, indent = 2, sort_keys = True)
+    f.write("\n")
+  return True
+                                                                # }}}1
+
+def user_config_file(): return HOME / CFG / GUICFGFILE
 
 # === classes ===
 
@@ -162,13 +175,16 @@ def define_classes():
       _, pid = self.spawn_sync(Vte.PtyFlags.DEFAULT, None, cmd, [],
                                self.FLG, None, None)
       if self.spawned_callback: self.spawned_callback(pid)
-      time.sleep(0.1)   # seems to help
+      time.sleep(0.2)   # seems to help
 
     def clear(self):
       self.reset(False, True)
 
+    def header(self, text):
+      self.feed(text.replace("\n", "\r\n").encode())
+
     def run_header(self, cmd):
-      self.feed(("$ " + cmd + "\r\n").encode())
+      self.header("$ " + cmd + "\n")
 
     def sh(self, cmd = None):
       c = cmd or " ".join(SHELLCMD)
@@ -328,6 +344,12 @@ def define_classes():
     def on_openbm(self, _action, _param):
       self._choose(self.choose_bookmark)
 
+    def on_savebm(self, _action, _param):
+      saved = add_bookmark(cwd())
+      msg   = "bookmark added" if saved else "already bookmarked"
+      self.win.term.clear()
+      self.win.term.header("# " + msg + "\n")
+
     def _choose(self, f):
       d = f()
       if d is not None: self.chdir_as_cmd(d)
@@ -415,7 +437,7 @@ def define_classes():
 
     def choose_bookmark(self):
       return self._combo_ask("Please choose a bookmark",
-                             self.cfg["bookmarks"])
+                             sorted(self.cfg["bookmarks"]))
 
     def _combo_ask(self, title, data):
       if len(data) == 0: return None                            # TODO
@@ -484,7 +506,8 @@ def import_gtk(scale):                                          # {{{1
 def main(*args):                                                # {{{1
   cfg = config(); n = _argument_parser(cfg).parse_args(args)
   if n.show_config:
-    json.dump(cfg, sys.stdout, indent = 2, sort_keys = True); print()
+    json.dump(cfg, sys.stdout, indent = 2, sort_keys = True)
+    print()
     return 0
   import_gtk(n.scale); define_classes()
   print("==> starting...")
@@ -596,10 +619,17 @@ MENU_XML_HEAD = """
           <attribute name="label" translatable="yes">Open _Parent Directory (..)</attribute>
           <attribute name="accel">period</attribute>
         </item>
+      </section>
+      <section>
         <item>
           <attribute name="action">app.openbm</attribute>
           <attribute name="label" translatable="yes">Open _Bookmark...</attribute>
           <attribute name="accel">b</attribute>
+        </item>
+        <item>
+          <attribute name="action">app.savebm</attribute>
+          <attribute name="label" translatable="yes">Bookmark Current Directory</attribute>
+          <attribute name="accel">&lt;#{MOD}&gt;b</attribute>
         </item>
       </section>
       <section>

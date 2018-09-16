@@ -2,7 +2,7 @@
 
     File        : README.md
     Maintainer  : Felix C. Stegerman <flx@obfusk.net>
-    Date        : 2018-09-13
+    Date        : 2018-09-16
 
     Copyright   : Copyright (C) 2018  Felix C. Stegerman
     Version     : v0.0.1
@@ -77,6 +77,12 @@ $ m-gui --show-config
 ```
 
 ### Bookmarks
+
+NB: since bookmarks are saved in `gui.json`, adding a bookmark from
+the GUI will open and re-save this file.  Formatting is thus not
+preserved, data should be (unless you happen to trigger a race
+condition by writing to this file in between loading and saving by the
+GUI).
 
 ```json
 {
