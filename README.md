@@ -97,6 +97,10 @@ current configuration, run:
 $ m-gui --show-config
 ```
 
+NB: some (non-gui-specific) options -- like using `mpv` as player --
+are better configured via `config.json`; see the documentation of `m`
+for more information.
+
 ### Bookmarks
 
 NB: since bookmarks are saved in `gui.json`, adding a bookmark from
