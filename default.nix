@@ -4,6 +4,7 @@ let
   _mmm = import (builtins.fetchGit {
     url = "https://github.com/obfusk/m.git";
     rev = "e4ff278e3461d77d54469cf49cce8fe3814f7489";           # TODO
+    ref = "nix";                                                # TODO
   }) {};
 in pkgs.python3Packages.buildPythonApplication rec {
   pname                 = "mmm-gui";
