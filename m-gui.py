@@ -5,7 +5,7 @@
 #
 # File        : m-gui.py
 # Maintainer  : Felix C. Stegerman <flx@obfusk.net>
-# Date        : 2018-09-16
+# Date        : 2018-09-27
 #
 # Copyright   : Copyright (C) 2018  Felix C. Stegerman
 # Version     : v0.1.1
@@ -55,7 +55,7 @@ COMBOWRAP   = 80
 
 # NB: we run a login shell b/c we need /etc/profile.d/vte-2.91.sh to
 # be sourced for current_directory_uri to work.
-SHELL       = "/bin/bash"                                       # TODO
+SHELL       = "bash"                                            # TODO
 SHELLCMD    = [SHELL, "-l"]
 SHELLRUN    = [SHELL, "-c"]
 
