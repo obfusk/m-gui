@@ -5,7 +5,8 @@ from setuptools import setup
 
 m_gui               = importlib.import_module("m-gui")
 
-long_description    = Path(__file__).with_name("README.rst").read_text()
+long_description    = Path(__file__).with_name("README.rst") \
+                      .read_text(encoding = "utf8")
 
 setup(
   name              = "mmm-gui",
