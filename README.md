@@ -2,7 +2,7 @@
 
     File        : README.md
     Maintainer  : Felix C. Stegerman <flx@obfusk.net>
-    Date        : 2018-09-16
+    Date        : 2018-09-27
 
     Copyright   : Copyright (C) 2018  Felix C. Stegerman
     Version     : v0.1.1
@@ -86,6 +86,21 @@ $ git clone https://github.com/obfusk/m-gui.git obfusk-m-gui
 $ cd obfusk-m-gui
 $ dpkg-buildpackage
 $ sudo dpkg -i ../mmm-gui_*_all.deb
+```
+
+### NixOS
+
+```bash
+$ cd /some/convenient/dir
+$ git clone https://github.com/obfusk/m-gui.git obfusk-m-gui
+$ cd obfusk-m-gui
+$ nix-env -i -f .
+```
+
+or even:
+
+```bash
+$ nix-env -i -f https://github.com/obfusk/m-gui/archive/master.tar.gz
 ```
 
 ## Configuration File
